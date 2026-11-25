@@ -140,6 +140,18 @@
   var TOKEN = params.get("t") || localStorage.getItem(CLAVE_TOKEN) || "";
   var DATOS = null;
 
+  /* Clave local: permite calificar sin llenar la pestaña "Clave" de la hoja.
+     Se recibe en el enlace (?clave=texto1,texto2,… o índices 1,1,2,1,1) y se
+     guarda en el navegador. Si la hoja ya trae clave, esa manda. */
+  var CLAVE_LOCAL = [];
+  (function () {
+    var K = "evaluacion_clave";
+    var raw = params.get("clave");
+    if (raw) { try { localStorage.setItem(K, raw); } catch (e) {} }
+    else { try { raw = localStorage.getItem(K); } catch (e) { raw = null; } }
+    if (raw) CLAVE_LOCAL = raw.split(",").map(function (s) { return s.trim(); });
+  })();
+
   var $ = function (id) { return document.getElementById(id); };
 
   if (TOKEN) localStorage.setItem(CLAVE_TOKEN, TOKEN);
@@ -221,6 +233,24 @@
 
     var rs = d.respuestas || [];
     var preguntas = d.preguntas || [];
+    var claveDeHoja = false;
+    for (var z = 0; z < preguntas.length; z++) { if (preguntas[z].correcta) claveDeHoja = true; }
+
+    /* Si la hoja no tiene clave, se usa la del enlace/navegador. */
+    for (var c = 0; c < preguntas.length; c++) {
+      if (preguntas[c].correcta) continue;
+      var cv = CLAVE_LOCAL[c];
+      if (!cv) continue;
+      if (/^\d+$/.test(cv)) {
+        var idxc = parseInt(cv, 10);
+        if (idxc >= 0 && idxc < preguntas[c].opciones.length) {
+          preguntas[c].correcta = preguntas[c].opciones[idxc];
+        }
+      } else if (preguntas[c].opciones.indexOf(cv) !== -1) {
+        preguntas[c].correcta = cv;
+      }
+    }
+
     var conPuntaje = rs.length > 0 && preguntas.some(function (p) { return !!p.correcta; });
 
     // KPIs
@@ -312,8 +342,12 @@
     if (d.hoja) $("btn-hoja").href = d.hoja;
 
     if (!conPuntaje) {
-      $("nota-tabla").innerHTML = "Aún no hay <b>Clave</b> cargada en la hoja, por eso los aciertos salen en blanco. " +
-        "Llénala y vuelve a actualizar.";
+      $("nota-tabla").innerHTML = "Aún no hay <b>Clave</b> cargada, por eso los aciertos salen en blanco. " +
+        "Llene la pestaña <b>Clave</b> de la hoja (o abra el panel con <code>?clave=</code>) y vuelva a actualizar.";
+    } else {
+      $("nota-tabla").innerHTML = "Una fila por persona. Si alguien respondió más de una vez se muestra el envío más reciente. " +
+        "Clave: " + (claveDeHoja ? "<b>desde la hoja</b>." :
+          "<b>desde el enlace</b> (para dejarla fija, llene la pestaña Clave).");
     }
 
     // distribución
