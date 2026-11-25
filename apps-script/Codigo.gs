@@ -249,6 +249,8 @@ function inicializar_(ss) {
   hoja.setColumnWidth(1, 150);
   hoja.setColumnWidth(2, 220);
   hoja.setColumnWidth(3, 130);
+  // El documento se guarda como texto: conserva ceros a la izquierda
+  try { hoja.getRange('C2:C').setNumberFormat('@'); } catch (e) {}
 
   var clave = ss.getSheetByName(CONFIG.hojaClave);
   if (!clave) {

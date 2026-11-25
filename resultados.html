@@ -199,6 +199,21 @@
     }, 15000);
   }
 
+  /* ---------------- puntaje ---------------- */
+  /* Se calcula en el navegador a partir de la Clave, para que llenarla
+     más tarde califique también las respuestas anteriores. */
+  function puntaje(r, preguntas) {
+    var hayClave = false;
+    var n = 0;
+    for (var i = 0; i < preguntas.length; i++) {
+      var p = preguntas[i];
+      if (!p.correcta) continue;
+      hayClave = true;
+      if (r.respuestas[p.id] === p.correcta) n++;
+    }
+    return hayClave ? n : null;
+  }
+
   /* ---------------- pintar ---------------- */
   function pintar(d) {
     ocultarTodo();
@@ -206,7 +221,7 @@
 
     var rs = d.respuestas || [];
     var preguntas = d.preguntas || [];
-    var conPuntaje = rs.length > 0 && rs[0].aciertos !== null && rs[0].aciertos !== undefined;
+    var conPuntaje = rs.length > 0 && preguntas.some(function (p) { return !!p.correcta; });
 
     // KPIs
     $("chip-total").textContent = rs.length + (rs.length === 1 ? " respuesta" : " respuestas");
@@ -215,9 +230,10 @@
 
     var suma = 0, cuenta = 0, bien = 0;
     rs.forEach(function (r) {
-      if (r.aciertos === null || r.aciertos === undefined) return;
-      suma += r.aciertos; cuenta++;
-      if (r.aciertos >= 4) bien++;
+      var a = puntaje(r, preguntas);
+      if (a === null) return;
+      suma += a; cuenta++;
+      if (a >= 4) bien++;
     });
 
     if (cuenta) {
@@ -269,12 +285,13 @@
       });
 
       var cPunt = document.createElement("td");
-      if (r.aciertos === null || r.aciertos === undefined) {
+      var ac = puntaje(r, preguntas);
+      if (ac === null) {
         cPunt.innerHTML = '<span class="mini">—</span>';
       } else {
-        var pct = Math.round(r.aciertos / preguntas.length * 100);
+        var pct = Math.round(ac / preguntas.length * 100);
         var clase = pct >= 80 ? "a" : (pct >= 60 ? "m" : "b");
-        cPunt.innerHTML = '<span class="nota ' + clase + '">' + r.aciertos + "/" + preguntas.length + " · " + pct + "%</span>";
+        cPunt.innerHTML = '<span class="nota ' + clase + '">' + ac + "/" + preguntas.length + " · " + pct + "%</span>";
       }
       tr.appendChild(cPunt);
 
@@ -349,9 +366,10 @@
       .concat(["Aciertos", "Envíos"])];
 
     DATOS.respuestas.forEach(function (r) {
+      var ac = puntaje(r, preguntas);
       filas.push([r.documento, r.nombre, r.ts]
         .concat(preguntas.map(function (p) { return r.respuestas[p.id] || ""; }))
-        .concat([r.aciertos === null || r.aciertos === undefined ? "" : r.aciertos, r.envios || 1]));
+        .concat([ac === null ? "" : ac, r.envios || 1]));
     });
 
     var csv = filas.map(function (f) {
