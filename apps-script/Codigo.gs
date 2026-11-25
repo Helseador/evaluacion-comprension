@@ -100,8 +100,11 @@ function doPost(e) {
 
   } catch (err) {
     console.error(err);
-    return respuesta_('No se pudo registrar',
-      'Ocurrió un error al guardar. Intente de nuevo o avise al administrador.', false);
+    var detalle = String((err && err.message) || err);
+    var causa = /configurar|HOJA_ID|propiedad|No existe la pestaña|no tiene permiso/i.test(detalle)
+      ? 'Falta ejecutar la función configurar() una vez en el editor de Apps Script.'
+      : 'Ocurrió un error al guardar. Intente de nuevo o avise al administrador.';
+    return respuesta_('No se pudo registrar', causa, false);
   } finally {
     try { lock.releaseLock(); } catch (e2) {}
   }
@@ -109,6 +112,9 @@ function doPost(e) {
 
 
 function doGet(e) {
+  var q = (e && e.parameter) || {};
+  if (q.diag) return diagnostico_();
+
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
     '<title>Receptor activo</title>' +
@@ -125,6 +131,39 @@ function doGet(e) {
   return HtmlService.createHtmlOutput(html)
     .setTitle('Receptor activo')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+
+/** Diagnóstico rápido: abra <URL>/exec?diag=1 */
+function diagnostico_() {
+  var lineas = ['Receptor: OK'];
+  var id = PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA);
+  lineas.push('Hoja configurada: ' + (id ? 'SI' : 'NO — falta ejecutar configurar()'));
+
+  if (id) {
+    try {
+      var ss = SpreadsheetApp.openById(id);
+      var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
+      lineas.push('Pestaña ' + CONFIG.hojaRespuestas + ': ' +
+        (hoja ? 'OK (' + Math.max(0, hoja.getLastRow() - 1) + ' respuestas)' : 'FALTA'));
+      var clave = ss.getSheetByName(CONFIG.hojaClave);
+      lineas.push('Pestaña ' + CONFIG.hojaClave + ': ' + (clave ? 'OK' : 'FALTA'));
+      if (clave && clave.getLastRow() >= 2) {
+        var filas = Math.min(PREGUNTAS.length, clave.getLastRow() - 1);
+        var v = clave.getRange(2, 2, filas, 1).getValues();
+        var llenas = 0;
+        for (var i = 0; i < v.length; i++) {
+          if (String(v[i][0]).trim() !== '') llenas++;
+        }
+        lineas.push('Clave cargada: ' + llenas + ' de ' + PREGUNTAS.length);
+      }
+    } catch (err) {
+      lineas.push('Error abriendo la hoja: ' + ((err && err.message) || err));
+    }
+  }
+
+  return ContentService.createTextOutput(lineas.join('\n'))
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 
