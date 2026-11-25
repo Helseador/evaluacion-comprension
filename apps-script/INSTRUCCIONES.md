@@ -16,25 +16,7 @@ Guía corta para dejar el receptor funcionando. Son unos 5 minutos y se hace una
 3. Copie **todo** el contenido de [`Codigo.gs`](Codigo.gs) y péguelo.
 4. Guarde con `Ctrl+S`.
 
-## Paso 3 — Crear la hoja de respuestas
-
-1. Arriba, en la lista de funciones, elija **`configurar`**.
-2. Pulse **Ejecutar**.
-3. Google pedirá autorización:
-   - **Revisar permisos** → elija su cuenta.
-   - "Google no ha verificado esta aplicación" → **Configuración avanzada** →
-     **Ir a … (no seguro)**. Es normal: el script lo escribió usted y solo crea
-     una hoja de cálculo.
-   - **Permitir**.
-
-Se crea el archivo **"Respuestas — Evaluación de comprensión"** con dos pestañas:
-
-- **Respuestas** — donde caen los envíos.
-- **Clave** — para poner la respuesta correcta de cada pregunta (opcional).
-
-El enlace de la hoja queda en **Ver → Registros**.
-
-## Paso 4 — Publicar el receptor
+## Paso 3 — Publicar el receptor
 
 1. Arriba a la derecha: **Implementar → Nueva implementación**.
 2. Tipo: **Aplicación web**.
@@ -42,14 +24,33 @@ El enlace de la hoja queda en **Ver → Registros**.
    - **Descripción:** `Receptor evaluación`
    - **Ejecutar como:** `Yo (su correo)`
    - **Quién tiene acceso:** `Cualquier persona`
-4. **Implementar** y copie la **URL de la aplicación web**. Termina en `/exec`.
+4. **Implementar** → autorice los permisos si los pide.
+5. Copie la **URL de la aplicación web**. Termina en `/exec`.
 
-> Si el navegador abre esa URL, debe decir **"Receptor activo"**. Si pide iniciar
-> sesión, el acceso quedó mal: vuelva a implementar eligiendo *Cualquier persona*.
+> **Importante:** "Cualquier persona" ≠ "Cualquier persona con una cuenta de Google".
+> Si elige la segunda, quien responda tendrá que iniciar sesión y el formulario no cargará.
 
-## Paso 5 — Pegarla en el formulario
+## Paso 4 — Crear la hoja de respuestas
 
-En el repositorio, abra `config.js`, clic en el lápiz ✏️ y pegue la URL:
+En el navegador, a la URL que copió agréguele `?setup=1` y ábrala:
+
+```
+https://script.google.com/macros/s/AKfycb.../exec?setup=1
+```
+
+Debe aparecer una página **"✓ Hoja creada"** con un botón que abre la hoja
+**"Respuestas — Evaluación de comprensión"** con dos pestañas:
+
+- **Respuestas** — donde caen los envíos (este es el panel de resultados).
+- **Clave** — opcional, para calcular aciertos.
+
+> Si se salta este paso no pasa nada: el primer envío crea la hoja solo.
+> Puede volver a abrirlo cuando quiera; es seguro ejecutarlo varias veces.
+
+## Paso 5 — Conectarla al formulario
+
+En el repositorio, abra `config.js`, clic en el lápiz ✏️ y pegue la URL
+**sin** `?setup=1`:
 
 ```js
 webhookUrl: "https://script.google.com/macros/s/AKfycb.../exec",
@@ -64,6 +65,19 @@ webhookUrl: "https://script.google.com/macros/s/AKfycb.../exec",
 3. Borre las filas de prueba cuando termine.
 
 ---
+
+## Comprobar que todo está bien
+
+Agregue al final de la URL `/exec`:
+
+| Parámetro | Qué muestra |
+|---|---|
+| `?diag=1` | `Hoja configurada: SI/NO`, cuántas respuestas lleva, si la clave está cargada |
+| `?setup=1` | Crea o repara la hoja y da el enlace directo |
+| *(nada)* | Página "Receptor activo" |
+
+Si el formulario dice **"No se pudo confirmar el registro"**, el mensaje técnico
+aparece en la página de resultado del envío y en **Ejecuciones** del editor.
 
 ## Puntaje (opcional)
 
@@ -89,3 +103,8 @@ La URL no cambia.
 | Apps Script / servicio de ejecución | publicarse como aplicación web |
 
 No accede a Gmail, Drive completo ni a ningún otro archivo.
+
+## Si se pierde la hoja
+
+Vuelva a abrir `…/exec?setup=1`: el script ya tiene guardado el ID y le devuelve el
+enlace. Si por algún motivo la hoja se borró, crea una nueva automáticamente.

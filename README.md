@@ -37,17 +37,17 @@ sin tarjeta y sin mantenimiento.
 ### 1. Crear el receptor en Google
 
 1. Abra <https://script.google.com/home> → **Nuevo proyecto**.
-2. Pegue el contenido de [`apps-script/Codigo.gs`](apps-script/Codigo.gs) en `Código.gs`.
-3. Guarde y ejecute la función **`configurar`** → autorice los permisos.
-   Se crea la hoja de respuestas (el enlace queda en el registro de ejecución).
-4. **Implementar → Nueva implementación → Aplicación web**
+2. Pegue el contenido de [`apps-script/Codigo.gs`](apps-script/Codigo.gs) en `Código.gs` y guarde (`Ctrl+S`).
+3. **Implementar → Nueva implementación → Aplicación web**
    - *Ejecutar como:* **Yo**
    - *Quién tiene acceso:* **Cualquier persona**
-5. Copie la URL, que termina en `/exec`.
+4. Copie la URL (termina en `/exec`), agréguele `?setup=1` y ábrala en el navegador.
+   Se crea la hoja de respuestas y la página le muestra el enlace directo.
+   *(Si se salta este paso no pasa nada: el primer envío crea la hoja solo.)*
 
 ### 2. Conectarla al formulario
 
-Abra `config.js` y pegue la URL:
+Abra `config.js` y pegue la URL **sin** `?setup=1`:
 
 ```js
 window.EVALUACION = {
@@ -64,6 +64,14 @@ en un minuto. También puede pedirle a quien mantiene el repo que lo haga.
 
 Abra el sitio, responda y verifique que la fila aparece en la hoja. La URL del
 Web App abierta directamente en el navegador debe decir **"Receptor activo"**.
+
+### Comprobaciones (agregue al final de la URL `/exec`)
+
+| Parámetro | Qué hace |
+|---|---|
+| `?diag=1` | Texto plano con el estado: si la hoja está configurada, cuántas respuestas lleva y si la clave está cargada |
+| `?setup=1` | Crea o repara la hoja y muestra el enlace directo (seguro de ejecutar varias veces) |
+| `?setup=1` + `?diag=1` | Es el primer sitio donde mirar si algo no guarda |
 
 ## Ver los resultados
 
@@ -114,11 +122,13 @@ apps-script/INSTRUCCIONES.md
 persona*, o se cambió el código y no se volvió a implementar (*Implementar → Gestionar
 implementaciones → Editar*).
 
-**No aparecen las respuestas en la hoja** → revise la pestaña correcta y que
-`PropertiesService` tenga el ID; volver a ejecutar `configurar` es seguro (no borra datos).
+**No aparecen las respuestas en la hoja** → abra `…/exec?diag=1`. Si dice
+`Hoja configurada: NO`, abra `…/exec?setup=1` y se crea. Si dice `SI` pero con
+0 respuestas, revise que el formulario esté enviando (pestaña *Red* del navegador).
 
 **Cambié el código y no pasa nada** → Apps Script no actualiza solo: hay que crear una
-**nueva versión** de la implementación.
+**nueva versión** de la implementación (*Implementar → Gestionar implementaciones →
+lápiz → Versión: Nueva versión*). La URL no cambia.
 
 ## Privacidad
 
