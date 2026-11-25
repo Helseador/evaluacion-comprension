@@ -393,13 +393,18 @@ function diagnostico_() {
  */
 function respuesta_(titulo, mensaje, ok) {
   var estado = ok ? 'ok' : 'error';
+  // Apps Script muestra la página dentro de un iframe anidado: el aviso tiene
+  // que ir a "top" (la página del formulario) y no a "parent" (el marco de Google).
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
     '<title>' + titulo + '</title></head><body>' +
     '<h1>' + titulo + '</h1><p>' + mensaje + '</p>' +
     '<script>' +
-    'try{parent.postMessage({evaluacion:"' + estado + '",mensaje:' +
-    JSON.stringify(mensaje) + '},"*");}catch(e){}' +
+    '(function(){' +
+    'var m={evaluacion:"' + estado + '",mensaje:' + JSON.stringify(mensaje) + '};' +
+    'try{window.top.postMessage(m,"*");}catch(e){}' +
+    'try{if(window.parent&&window.parent!==window.top){window.parent.postMessage(m,"*");}}catch(e){}' +
+    '})();' +
     '</script>' +
     '</body></html>';
   return HtmlService.createHtmlOutput(html)

@@ -206,7 +206,7 @@
       if (!enviando) return;
       fallar("No se pudo confirmar el registro. Revise su conexión e intente de nuevo; " +
              "si el problema continúa, avise al administrador.");
-    }, 2500);
+    }, 4000);
   });
 
   function procesarEnvio(ev) {
