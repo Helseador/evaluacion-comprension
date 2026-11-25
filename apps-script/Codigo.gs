@@ -64,10 +64,10 @@ function doPost(e) {
     var documento = String(p.documento || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
 
     if (nombre.length < CONFIG.nombreMinimo) {
-      return respuesta_('Datos incompletos', 'Falta el nombre completo.');
+      return respuesta_('Datos incompletos', 'Falta el nombre completo.', false);
     }
     if (!new RegExp(CONFIG.patronDocumento).test(documento)) {
-      return respuesta_('Datos incompletos', 'El número de documento no es válido.');
+      return respuesta_('Datos incompletos', 'El número de documento no es válido.', false);
     }
 
     var elegidas = [];
@@ -76,7 +76,7 @@ function doPost(e) {
       var valor = String(p[q.id] || '').trim();
       if (q.opciones.indexOf(valor) === -1) {
         return respuesta_('Datos incompletos',
-          'La pregunta ' + (i + 1) + ' quedó sin responder o con un valor no válido.');
+          'La pregunta ' + (i + 1) + ' quedó sin responder o con un valor no válido.', false);
       }
       elegidas.push(valor);
     }
@@ -96,11 +96,12 @@ function doPost(e) {
       String(p.fecha_cliente || '')
     ]));
 
-    return respuesta_('¡Listo!', 'Sus respuestas quedaron registradas.');
+    return respuesta_('¡Listo!', 'Sus respuestas quedaron registradas.', true);
 
   } catch (err) {
     console.error(err);
-    return respuesta_('No se pudo registrar', 'Ocurrió un error al guardar. Intente de nuevo o avise al administrador.');
+    return respuesta_('No se pudo registrar',
+      'Ocurrió un error al guardar. Intente de nuevo o avise al administrador.', false);
   } finally {
     try { lock.releaseLock(); } catch (e2) {}
   }
@@ -269,11 +270,21 @@ function calcularAciertos_(elegidas) {
   return aciertos;
 }
 
-function respuesta_(titulo, mensaje) {
+/**
+ * Página que se carga dentro del iframe oculto del formulario.
+ * Avisa al formulario (postMessage) si el registro quedó bien o no.
+ */
+function respuesta_(titulo, mensaje, ok) {
+  var estado = ok ? 'ok' : 'error';
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
     '<title>' + titulo + '</title></head><body>' +
-    '<h1>' + titulo + '</h1><p>' + mensaje + '</p></body></html>';
+    '<h1>' + titulo + '</h1><p>' + mensaje + '</p>' +
+    '<script>' +
+    'try{parent.postMessage({evaluacion:"' + estado + '",mensaje:' +
+    JSON.stringify(mensaje) + '},"*");}catch(e){}' +
+    '</script>' +
+    '</body></html>';
   return HtmlService.createHtmlOutput(html)
     .setTitle(titulo)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

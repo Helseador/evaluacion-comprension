@@ -182,12 +182,31 @@
     mostrarError(mensaje);
   }
 
-  /* El iframe avisa cuando el Web App terminó de responder */
-  iframe.addEventListener("load", function () {
+  /* La página del Web App avisa por postMessage si el registro quedó bien */
+  window.addEventListener("message", function (ev) {
+    var d = ev.data;
+    if (!d || typeof d !== "object" || !d.evaluacion) return;
     if (!enviando) return;
+
     clearTimeout(temporizador);
     enviando = false;
-    mostrarExito(window.__datosEnviados || {});
+
+    if (d.evaluacion === "ok") {
+      mostrarExito(window.__datosEnviados || {});
+    } else {
+      fallar("No se pudo registrar: " + (d.mensaje || "intente de nuevo."));
+    }
+  });
+
+  /* Respaldo: si el iframe terminó de cargar y nadie confirmó, es mejor avisar
+     que dar por enviado algo que quizá no se guardó. */
+  iframe.addEventListener("load", function () {
+    if (!enviando) return;
+    setTimeout(function () {
+      if (!enviando) return;
+      fallar("No se pudo confirmar el registro. Revise su conexión e intente de nuevo; " +
+             "si el problema continúa, avise al administrador.");
+    }, 2500);
   });
 
   function procesarEnvio(ev) {
