@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluación de comprensión</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Evaluación de comprensión — formulario de selección múltiple con identificación por nombre y documento.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <p class="eyebrow">Evaluación</p>
+    <h1 id="titulo">Evaluación de comprensión</h1>
+    <p>Marque <strong>una sola opción</strong> por pregunta. Al finalizar, pulse <strong>Enviar respuestas</strong>.</p>
+    <div class="chips">
+      <span class="chip">5 preguntas</span>
+      <span class="chip">Selección múltiple</span>
+      <span class="chip">≈ 2 minutos</span>
+      <span class="chip">Respuesta única</span>
+    </div>
+  </header>
+
+  <div class="aviso err" id="aviso-config">
+    <b>Falta conectar el formulario.</b><br>
+    Abra el archivo <code>config.js</code> y pegue la dirección del Web App de Google Apps Script
+    (termina en <code>/exec</code>).
+  </div>
+
+  <div id="zona-form">
+
+    <!-- ===== Identificación ===== -->
+    <section class="card">
+      <p class="card-title"><span class="n">i</span> Datos de identificación</p>
+      <p class="hint">Sus datos se usan únicamente para registrar y verificar la respuesta.</p>
+      <div class="grid">
+        <div class="field">
+          <label for="nombre">Nombre completo <span class="req">*</span></label>
+          <input type="text" id="nombre" name="nombre" placeholder="Nombres y apellidos"
+                 autocomplete="name" maxlength="120" required>
+          <p class="msg-err" id="err-nombre">Escriba su nombre completo.</p>
+        </div>
+        <div class="field">
+          <label for="documento">Documento de identidad <span class="req">*</span></label>
+          <input type="text" id="documento" name="documento" placeholder="Ej: 1023456789"
+                 inputmode="numeric" autocomplete="off" maxlength="15" required>
+          <p class="msg-err" id="err-documento">Escriba el número de documento (4 a 15 caracteres, sin puntos ni espacios).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Progreso ===== -->
+    <div class="progreso">
+      <span class="txt" id="contador" aria-live="polite">0 de 5 respondidas</span>
+      <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0" id="barra-p">
+        <i id="barra-i"></i>
+      </div>
+    </div>
+
+    <!-- ===== Preguntas ===== -->
+    <form id="form" novalidate>
+
+      <section class="card q">
+        <p class="enunciado"><span class="num">1</span>
+          <span>Después de una comida rica en carbohidratos, ¿qué hormona predomina?</span></p>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="p1" value="Glucagón" required>
+            <span class="dot"></span><span class="etiqueta">Glucagón</span></label>
+          <label class="opt"><input type="radio" name="p1" value="Insulina" required>
+            <span class="dot"></span><span class="etiqueta">Insulina</span></label>
+          <label class="opt"><input type="radio" name="p1" value="Cortisol" required>
+            <span class="dot"></span><span class="etiqueta">Cortisol</span></label>
+        </div>
+      </section>
+
+      <section class="card q">
+        <p class="enunciado"><span class="num">2</span>
+          <span>¿Qué sucede cuando disminuye la insulina durante el ayuno?</span></p>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="p2" value="Aumenta el almacenamiento de triglicéridos" required>
+            <span class="dot"></span><span class="etiqueta">Aumenta el almacenamiento de triglicéridos</span></label>
+          <label class="opt"><input type="radio" name="p2" value="Se favorece la movilización de reservas" required>
+            <span class="dot"></span><span class="etiqueta">Se favorece la movilización de reservas</span></label>
+          <label class="opt"><input type="radio" name="p2" value="Se detiene la gluconeogénesis" required>
+            <span class="dot"></span><span class="etiqueta">Se detiene la gluconeogénesis</span></label>
+        </div>
+      </section>
+
+      <section class="card q">
+        <p class="enunciado"><span class="num">3</span>
+          <span>¿Qué órgano produce la mayor parte de los cuerpos cetónicos?</span></p>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="p3" value="Cerebro" required>
+            <span class="dot"></span><span class="etiqueta">Cerebro</span></label>
+          <label class="opt"><input type="radio" name="p3" value="Músculo" required>
+            <span class="dot"></span><span class="etiqueta">Músculo</span></label>
+          <label class="opt"><input type="radio" name="p3" value="Hígado" required>
+            <span class="dot"></span><span class="etiqueta">Hígado</span></label>
+        </div>
+      </section>
+
+      <section class="card q">
+        <p class="enunciado"><span class="num">4</span>
+          <span>¿El cerebro deja de utilizar glucosa cuando aumenta la cetosis?</span></p>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="p4" value="Sí, por completo" required>
+            <span class="dot"></span><span class="etiqueta">Sí, por completo</span></label>
+          <label class="opt"><input type="radio" name="p4" value="No, aumenta el uso de cetonas pero conserva necesidades de glucosa" required>
+            <span class="dot"></span><span class="etiqueta">No, aumenta el uso de cetonas pero conserva necesidades de glucosa</span></label>
+          <label class="opt"><input type="radio" name="p4" value="Solo utiliza lactato" required>
+            <span class="dot"></span><span class="etiqueta">Solo utiliza lactato</span></label>
+        </div>
+      </section>
+
+      <section class="card q">
+        <p class="enunciado"><span class="num">5</span>
+          <span>¿Qué diferencia hay entre beta-oxidación y cetogénesis?</span></p>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="p5" value="Son el mismo proceso" required>
+            <span class="dot"></span><span class="etiqueta">Son el mismo proceso</span></label>
+          <label class="opt"><input type="radio" name="p5" value="La beta-oxidación genera acetil-CoA; la cetogénesis genera cuerpos cetónicos" required>
+            <span class="dot"></span><span class="etiqueta">La beta-oxidación genera acetil-CoA; la cetogénesis genera cuerpos cetónicos</span></label>
+          <label class="opt"><input type="radio" name="p5" value="La cetogénesis degrada glucógeno" required>
+            <span class="dot"></span><span class="etiqueta">La cetogénesis degrada glucógeno</span></label>
+        </div>
+      </section>
+
+      <div class="aviso err" id="aviso-error" role="alert"></div>
+    </form>
+
+  </div>
+
+  <!-- ===== Confirmación ===== -->
+  <section class="ok" id="pantalla-ok">
+    <div class="check">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0d7a6f" stroke-width="3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </div>
+    <h2>¡Respuestas enviadas!</h2>
+    <p>Gracias, <b id="ok-nombre">—</b>. Su evaluación quedó registrada correctamente. Ya puede cerrar esta ventana.</p>
+    <div class="resumen">
+      <div><span>Documento</span><b id="ok-doc">—</b></div>
+      <div><span>Preguntas</span><b>5 de 5</b></div>
+      <div><span>Hora</span><b id="ok-hora">—</b></div>
+    </div>
+  </section>
+
+</div>
+
+<div class="barra-envio" id="barra-envio">
+  <div class="inner">
+    <span class="estado" id="estado">Complete sus datos y las 5 preguntas</span>
+    <button class="enviar" id="btn-enviar" disabled>Enviar respuestas</button>
+  </div>
+</div>
+
+<iframe name="destino-envio" id="destino-envio" title="envío" style="display:none" aria-hidden="true"></iframe>
+
+<footer>Evaluación de comprensión · Sus respuestas quedan registradas de forma confidencial.</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
