@@ -254,6 +254,18 @@
     var claveDeHoja = false;
     for (var z = 0; z < preguntas.length; z++) { if (preguntas[z].correcta) claveDeHoja = true; }
 
+    /* Una fila por persona: si alguien envió varias veces, cuenta la más reciente. */
+    var porDocumento = {};
+    rs.forEach(function (r) {
+      var k = String(r.documento || r.nombre || "");
+      var previo = porDocumento[k];
+      if (!previo || String(r.ts) >= String(previo.ts)) porDocumento[k] = r;
+    });
+    var unicos = Object.keys(porDocumento).map(function (k) { return porDocumento[k]; });
+    unicos.sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); });
+    rs = unicos;
+    d.respuestas = unicos;
+
     /* Si la hoja no tiene clave, se usa la del enlace/navegador. */
     for (var c = 0; c < preguntas.length; c++) {
       if (preguntas[c].correcta) continue;
@@ -272,7 +284,7 @@
     var conPuntaje = rs.length > 0 && preguntas.some(function (p) { return !!p.correcta; });
 
     // KPIs
-    $("chip-total").textContent = rs.length + (rs.length === 1 ? " respuesta" : " respuestas");
+    $("chip-total").textContent = rs.length + (rs.length === 1 ? " persona" : " personas");
     $("chip-fecha").textContent = "Actualizado " + (d.generado || "").slice(11, 16);
     $("k-personas").textContent = rs.length;
 
