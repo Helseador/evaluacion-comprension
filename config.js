@@ -12,7 +12,7 @@ window.EVALUACION = {
         Ejemplo:
         webhookUrl: "https://script.google.com/macros/s/AKfycb.../exec"
   */
-  webhookUrl: "",
+  webhookUrl: "https://script.google.com/macros/s/AKfycbxNadzmRwg_rPGfajgolc0jTAPULEXwgrxNSxm31-KTwDYd9iL4sGVVF7ob65B2p-Tm/exec",
 
   /* 2) Título que aparece en la pestaña y en el encabezado (opcional) */
   titulo: "Evaluación de comprensión",
