@@ -9,19 +9,24 @@
  *  MONTAJE (5 minutos):
  *    1. https://script.google.com/home  →  Nuevo proyecto
  *    2. Pegue TODO este archivo en Código.gs y guarde (Ctrl+S)
- *    3. Ejecute la función  configurar  y autorice los permisos
- *    4. Ejecute la función  desplegar  → revise el registro y copie la URL
- *       (o hágalo a mano: Implementar → Nueva implementación → Aplicación web
- *        · Ejecutar como: Yo
- *        · Quién tiene acceso: Cualquier persona)
- *    5. Pegue esa URL (termina en /exec) en config.js del repositorio
+ *    3. Implementar → Nueva implementación → Aplicación web
+ *         · Ejecutar como: Yo
+ *         · Quién tiene acceso: Cualquier persona
+ *    4. Abra la URL que le dan y añada  ?setup=1
+ *         https://script.google.com/macros/s/XXXX/exec?setup=1
+ *       Eso crea la hoja de respuestas y le muestra el enlace.
+ *    5. Pegue la URL (sin ?setup=1) en config.js del repositorio
  *
- *  La URL sirve igual para el formulario y para probar: abrirla en el
- *  navegador debe mostrar "Receptor activo".
+ *  Si se le olvida el paso 4, no pasa nada: el primer envío crea la hoja solo.
  *
- *  PUNTAJE (opcional): si quiere que la hoja calcule aciertos, abra la
- *  pestaña "Clave" y escriba en la columna B la opción correcta de cada
- *  pregunta. Si la deja vacía, la columna Aciertos queda en blanco.
+ *  La hoja queda con dos pestañas:
+ *    · Respuestas — una fila por persona (aquí se ven los resultados)
+ *    · Clave      — opcional, para calcular aciertos
+ *
+ *  Comprobaciones útiles (abra la URL en el navegador):
+ *    …/exec          → "Receptor activo"
+ *    …/exec?diag=1   → estado: hoja configurada, nº de respuestas, clave cargada
+ *    …/exec?setup=1  → crea/repara la hoja y muestra el enlace
  * ============================================================================
  */
 
@@ -32,9 +37,11 @@ var CONFIG = {
   nombreMinimo: 5,
   patronDocumento: '^[0-9A-Za-z]{4,15}$',
 
-  /* Opcional: si prefiere no depender de las propiedades del script, pegue
-     aquí el ID de la hoja de cálculo (la parte entre /d/ y /edit de su URL).
-     Déjelo vacío para que lo tome automáticamente al ejecutar configurar(). */
+  /* Si no hay hoja configurada, el script la crea en el primer envío. */
+  autoCrear: true,
+
+  /* Opcional: fije aquí el ID de la hoja (la parte entre /d/ y /edit de su URL)
+     si prefiere no depender de las propiedades del script. */
   hojaId: ''
 };
 
@@ -106,10 +113,7 @@ function doPost(e) {
   } catch (err) {
     console.error(err);
     var detalle = String((err && err.message) || err);
-    var causa = /configurar|HOJA_ID|propiedad|No existe la pestaña|no tiene permiso/i.test(detalle)
-      ? 'Falta ejecutar la función configurar() una vez en el editor de Apps Script.'
-      : 'No se pudo guardar. Detalle técnico: ' + detalle;
-    return respuesta_('No se pudo registrar', causa, false);
+    return respuesta_('No se pudo registrar', 'No se pudo guardar. Detalle técnico: ' + detalle, false);
   } finally {
     try { lock.releaseLock(); } catch (e2) {}
   }
@@ -119,19 +123,21 @@ function doPost(e) {
 function doGet(e) {
   var q = (e && e.parameter) || {};
   if (q.diag) return diagnostico_();
+  if (q.setup) return setup_();
 
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
     '<title>Receptor activo</title>' +
     '<style>body{font-family:system-ui,Segoe UI,sans-serif;background:#eef2f7;color:#13232f;' +
     'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}' +
-    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:36px 34px;max-width:480px;' +
+    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:36px 34px;max-width:520px;' +
     'box-shadow:0 10px 30px rgba(16,40,60,.08)}h1{margin:0 0 10px;font-size:20px;color:#0d7a6f}' +
     'p{margin:0 0 8px;color:#5f7485;font-size:14.5px;line-height:1.5}code{background:#eef2f7;' +
-    'padding:2px 6px;border-radius:4px;font-size:13px}</style></head><body><div class="c">' +
+    'padding:2px 6px;border-radius:4px;font-size:13px}a{color:#0d7a6f}</style></head><body><div class="c">' +
     '<h1>✓ Receptor activo</h1>' +
     '<p>Este enlace está recibiendo las respuestas de la evaluación.</p>' +
-    '<p>Las respuestas se guardan en la hoja <code>' + CONFIG.hojaRespuestas + '</code>.</p>' +
+    '<p><a href="?setup=1">Crear o reparar la hoja de respuestas</a> · ' +
+    '<a href="?diag=1">Ver estado</a></p>' +
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html)
     .setTitle('Receptor activo')
@@ -139,11 +145,221 @@ function doGet(e) {
 }
 
 
-/** Diagnóstico rápido: abra <URL>/exec?diag=1 */
+/* ==========================================================================
+   INSTALACIÓN
+   ========================================================================== */
+
+/** Crea o repara la hoja de respuestas. Es seguro ejecutarla varias veces. */
+function configurar() {
+  var ss = obtenerHoja_();
+  inicializar_(ss);
+  var url = ss.getUrl();
+  console.log('Hoja de respuestas: ' + url);
+  console.log('ID de la hoja: ' + ss.getId());
+  return url;
+}
+
+
+/** Muestra la dirección del Web App ya desplegado. */
+function desplegar() {
+  var url = ScriptApp.getService().getUrl();
+  console.log('URL para config.js: ' + url);
+  return url;
+}
+
+
+/** Escribe una fila de prueba para verificar que todo funciona. */
+function probar() {
+  var hoja = hojaRespuestas_();
+  var correctas = [
+    'Insulina', 'Se favorece la movilización de reservas', 'Hígado',
+    'No, aumenta el uso de cetonas pero conserva necesidades de glucosa',
+    'La beta-oxidación genera acetil-CoA; la cetogénesis genera cuerpos cetónicos'
+  ];
+  hoja.appendRow([new Date(), 'PRUEBA (borrar)', '000000']
+    .concat(correctas)
+    .concat([calcularAciertos_(correctas) || '', 1, 'prueba', new Date().toISOString()]));
+  console.log('Fila de prueba agregada. Bórrela antes de compartir el formulario.');
+}
+
+
+/* ==========================================================================
+   INTERNO
+   ========================================================================== */
+
+function idHoja_() {
+  var fijo = CONFIG.hojaId && String(CONFIG.hojaId).trim();
+  if (fijo) return fijo;
+  return PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA) || '';
+}
+
+/** Abre la hoja configurada o, si no existe, la crea. */
+function obtenerHoja_() {
+  var id = idHoja_();
+
+  if (id) {
+    try {
+      var ss = SpreadsheetApp.openById(id);
+      if (ss) return ss;
+    } catch (e) {
+      if (!CONFIG.autoCrear) {
+        throw new Error('No se pudo abrir la hoja configurada. ' + e.message);
+      }
+    }
+  }
+
+  if (!CONFIG.autoCrear) {
+    throw new Error('Falta ejecutar configurar() una vez.');
+  }
+
+  var nueva = SpreadsheetApp.create('Respuestas — ' + CONFIG.titulo);
+  PropertiesService.getScriptProperties().setProperty(PROPIEDAD_HOJA, nueva.getId());
+  inicializar_(nueva);
+  return nueva;
+}
+
+function hojaRespuestas_() {
+  var ss = obtenerHoja_();
+  var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
+  if (!hoja) throw new Error('No existe la pestaña ' + CONFIG.hojaRespuestas);
+  return hoja;
+}
+
+/** Deja la hoja con encabezados y la pestaña de clave. Idempotente. */
+function inicializar_(ss) {
+  var hoja = ss.getSheetByName(CONFIG.hojaRespuestas) || ss.insertSheet(CONFIG.hojaRespuestas, 0);
+  var encabezados = ['Marca temporal', 'Nombre completo', 'Documento de identidad']
+    .concat(PREGUNTAS.map(function (q, i) { return 'P' + (i + 1); }))
+    .concat(['Aciertos', 'Envíos', 'Origen', 'Fecha del equipo']);
+
+  if (hoja.getLastRow() === 0) {
+    hoja.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
+  }
+  hoja.getRange(1, 1, 1, encabezados.length)
+    .setFontWeight('bold')
+    .setBackground('#0d7a6f')
+    .setFontColor('#ffffff');
+  hoja.setFrozenRows(1);
+  hoja.setColumnWidth(1, 150);
+  hoja.setColumnWidth(2, 220);
+  hoja.setColumnWidth(3, 130);
+
+  var clave = ss.getSheetByName(CONFIG.hojaClave);
+  if (!clave) {
+    clave = ss.insertSheet(CONFIG.hojaClave);
+    clave.getRange(1, 1, 1, 2).setValues([['Pregunta', 'Opción correcta (llene la columna B)']]);
+    clave.getRange(1, 1, 1, 2)
+      .setFontWeight('bold')
+      .setBackground('#e6f4f1')
+      .setFontColor('#08564e');
+    var filas = PREGUNTAS.map(function (q, i) { return ['P' + (i + 1) + '. ' + q.texto, '']; });
+    clave.getRange(2, 1, filas.length, 2).setValues(filas);
+    clave.setColumnWidth(1, 520);
+    clave.setColumnWidth(2, 300);
+    for (var i = 0; i < PREGUNTAS.length; i++) {
+      var regla = SpreadsheetApp.newDataValidation()
+        .requireValueInList(PREGUNTAS[i].opciones, true)
+        .setAllowInvalid(false)
+        .build();
+      clave.getRange(i + 2, 2).setDataValidation(regla);
+    }
+    clave.setFrozenRows(1);
+  }
+
+  // Borra la pestaña vacía que Sheets crea por defecto
+  var hojas = ss.getSheets();
+  if (hojas.length > 2) {
+    var primera = hojas[0];
+    if (primera.getLastRow() === 0 &&
+        primera.getName() !== CONFIG.hojaRespuestas &&
+        primera.getName() !== CONFIG.hojaClave) {
+      ss.deleteSheet(primera);
+    }
+  }
+  return ss;
+}
+
+function contarEnvios_(hoja, documento) {
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) return 0;
+  var docs = hoja.getRange(2, 3, ultima - 1, 1).getValues();
+  var n = 0;
+  for (var i = 0; i < docs.length; i++) {
+    if (String(docs[i][0]).trim() === documento) n++;
+  }
+  return n;
+}
+
+/** Devuelve el número de aciertos, o null si no hay clave configurada. */
+function calcularAciertos_(elegidas) {
+  var ss, clave;
+  try {
+    ss = obtenerHoja_();
+    clave = ss.getSheetByName(CONFIG.hojaClave);
+  } catch (e) {
+    return null;
+  }
+  if (!clave) return null;
+
+  var filas = Math.max(0, clave.getLastRow() - 1);
+  if (filas < PREGUNTAS.length) return null;
+
+  var valores = clave.getRange(2, 2, PREGUNTAS.length, 1).getValues();
+  var hayClave = false;
+  for (var i = 0; i < valores.length; i++) {
+    if (String(valores[i][0]).trim() !== '') hayClave = true;
+  }
+  if (!hayClave) return null;
+
+  var aciertos = 0;
+  for (var j = 0; j < PREGUNTAS.length; j++) {
+    var correcta = String(valores[j][0] || '').trim();
+    if (correcta && correcta === elegidas[j]) aciertos++;
+  }
+  return aciertos;
+}
+
+/** …/exec?setup=1 — crea la hoja desde el navegador y muestra el enlace. */
+function setup_() {
+  var creada = false;
+  var idAntes = idHoja_();
+  var ss = obtenerHoja_();
+  if (!idAntes || ss.getId() !== idAntes) creada = true;
+
+  inicializar_(ss);
+
+  var url = ss.getUrl();
+  var id = ss.getId();
+
+  var html =
+    '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Hoja lista</title>' +
+    '<style>body{font-family:system-ui,Segoe UI,sans-serif;background:#eef2f7;color:#13232f;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}' +
+    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:34px;max-width:600px;' +
+    'box-shadow:0 10px 30px rgba(16,40,60,.08)}h1{margin:0 0 8px;font-size:20px;color:#0d7a6f}' +
+    'p{color:#5f7485;font-size:14.5px;line-height:1.55;margin:0 0 10px}' +
+    'a.btn{display:inline-block;background:#0d7a6f;color:#fff;text-decoration:none;' +
+    'padding:11px 20px;border-radius:9px;font-weight:600;margin-top:8px}' +
+    'code{background:#eef2f7;padding:2px 6px;border-radius:4px;font-size:13px;word-break:break-all}' +
+    '</style></head><body><div class="c">' +
+    '<h1>✓ ' + (creada ? 'Hoja creada' : 'Hoja ya estaba lista') + '</h1>' +
+    '<p>Allí caen las respuestas de la evaluación. Ábrala y déjela en favoritos:</p>' +
+    '<p><a class="btn" href="' + url + '" target="_blank">Abrir la hoja de respuestas</a></p>' +
+    '<p style="margin-top:18px">ID de la hoja:<br><code>' + id + '</code></p>' +
+    '<p>Comprobación del receptor: <a href="?diag=1">?diag=1</a></p>' +
+    '</div></body></html>';
+
+  console.log('setup: ' + (creada ? 'hoja creada ' : 'hoja existente ') + url);
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Hoja lista')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** …/exec?diag=1 */
 function diagnostico_() {
   var lineas = ['Receptor: OK'];
   var id = idHoja_();
-  lineas.push('Hoja configurada: ' + (id ? 'SI' : 'NO — falta ejecutar configurar()'));
+  lineas.push('Hoja configurada: ' + (id ? 'SI' : 'NO — abra ?setup=1'));
 
   if (id) {
     try {
@@ -169,164 +385,6 @@ function diagnostico_() {
 
   return ContentService.createTextOutput(lineas.join('\n'))
     .setMimeType(ContentService.MimeType.TEXT);
-}
-
-
-/* ==========================================================================
-   INSTALACIÓN
-   ========================================================================== */
-
-/** Crea la hoja de cálculo con las pestañas y guarda su ID. */
-function configurar() {
-  var props = PropertiesService.getScriptProperties();
-  var id = idHoja_();
-
-  var ss;
-  if (id) {
-    ss = SpreadsheetApp.openById(id);
-  } else {
-    ss = SpreadsheetApp.create('Respuestas — ' + CONFIG.titulo);
-    props.setProperty(PROPIEDAD_HOJA, ss.getId());
-  }
-
-  var hoja = ss.getSheetByName(CONFIG.hojaRespuestas) || ss.insertSheet(CONFIG.hojaRespuestas, 0);
-  if (hoja.getLastRow() === 0) {
-    var encabezados = ['Marca temporal', 'Nombre completo', 'Documento de identidad']
-      .concat(PREGUNTAS.map(function (q, i) { return 'P' + (i + 1); }))
-      .concat(['Aciertos', 'Envíos', 'Origen', 'Fecha del equipo']);
-    hoja.getRange(1, 1, 1, encabezados.length).setValues([encabezados]);
-    hoja.getRange(1, 1, 1, encabezados.length)
-      .setFontWeight('bold')
-      .setBackground('#0d7a6f')
-      .setFontColor('#ffffff');
-    hoja.setFrozenRows(1);
-    hoja.setColumnWidth(1, 150);
-    hoja.setColumnWidth(2, 200);
-    hoja.setColumnWidth(3, 130);
-  }
-
-  var clave = ss.getSheetByName(CONFIG.hojaClave);
-  if (!clave) {
-    clave = ss.insertSheet(CONFIG.hojaClave);
-    clave.getRange(1, 1, 1, 2).setValues([['Pregunta', 'Opción correcta (llene la columna B)']]);
-    clave.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground('#e6f4f1');
-    var filas = PREGUNTAS.map(function (q, i) { return ['P' + (i + 1) + '. ' + q.texto, '']; });
-    clave.getRange(2, 1, filas.length, 2).setValues(filas);
-    clave.setColumnWidth(1, 520);
-    clave.setColumnWidth(2, 300);
-    // Validación: solo permite las opciones que existen en el formulario
-    for (var i = 0; i < PREGUNTAS.length; i++) {
-      var regla = SpreadsheetApp.newDataValidation()
-        .requireValueInList(PREGUNTAS[i].opciones, true)
-        .setAllowInvalid(false)
-        .build();
-      clave.getRange(i + 2, 2).setDataValidation(regla);
-    }
-  }
-
-  // La primera hoja vacía que crea Sheets se puede borrar
-  if (ss.getSheets().length > 2 && ss.getSheets()[0].getLastRow() === 0 &&
-      ss.getSheets()[0].getName() !== CONFIG.hojaRespuestas &&
-      ss.getSheets()[0].getName() !== CONFIG.hojaClave) {
-    ss.deleteSheet(ss.getSheets()[0]);
-  }
-
-  var url = ss.getUrl();
-  console.log('Hoja de respuestas: ' + url);
-  console.log('ID guardado en las propiedades del script.');
-  return url;
-}
-
-
-/** Muestra la dirección del Web App ya desplegado. */
-function desplegar() {
-  var url = ScriptApp.getService().getUrl();
-  console.log('================================================');
-  console.log('URL para config.js:');
-  console.log(url);
-  console.log('================================================');
-  return url;
-}
-
-
-/** Escribe una fila de prueba para verificar que todo funciona. */
-function probar() {
-  var hoja = hojaRespuestas_();
-  hoja.appendRow([new Date(), 'PRUEBA (borrar)', '000000',
-    'Insulina', 'Se favorece la movilización de reservas', 'Hígado',
-    'No, aumenta el uso de cetonas pero conserva necesidades de glucosa',
-    'La beta-oxidación genera acetil-CoA; la cetogénesis genera cuerpos cetónicos',
-    calcularAciertos_([
-      'Insulina', 'Se favorece la movilización de reservas', 'Hígado',
-      'No, aumenta el uso de cetonas pero conserva necesidades de glucosa',
-      'La beta-oxidación genera acetil-CoA; la cetogénesis genera cuerpos cetónicos'
-    ]) || '', 1, 'prueba', new Date().toISOString()]);
-  console.log('Fila de prueba agregada. Bórrela antes de compartir el formulario.');
-}
-
-
-/* ==========================================================================
-   INTERNO
-   ========================================================================== */
-
-function idHoja_() {
-  var fijo = CONFIG.hojaId && String(CONFIG.hojaId).trim();
-  if (fijo) return fijo;
-  return PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA) || '';
-}
-
-function hojaRespuestas_() {
-  var id = idHoja_();
-  if (!id) {
-    throw new Error('Falta ejecutar configurar() una vez.');
-  }
-  var ss = SpreadsheetApp.openById(id);
-  var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
-  if (!hoja) throw new Error('No existe la pestaña ' + CONFIG.hojaRespuestas);
-  return hoja;
-}
-
-function contarEnvios_(hoja, documento) {
-  var ultima = hoja.getLastRow();
-  if (ultima < 2) return 0;
-  var docs = hoja.getRange(2, 3, ultima - 1, 1).getValues();
-  var n = 0;
-  for (var i = 0; i < docs.length; i++) {
-    if (String(docs[i][0]).trim() === documento) n++;
-  }
-  return n;
-}
-
-/** Devuelve el número de aciertos, o null si no hay clave configurada. */
-function calcularAciertos_(elegidas) {
-  var id = idHoja_();
-  if (!id) return null;
-
-  var ss, clave;
-  try {
-    ss = SpreadsheetApp.openById(id);
-    clave = ss.getSheetByName(CONFIG.hojaClave);
-  } catch (e) {
-    return null;
-  }
-  if (!clave) return null;
-
-  var filas = Math.max(0, clave.getLastRow() - 1);
-  if (filas < PREGUNTAS.length) return null;
-
-  var valores = clave.getRange(2, 2, PREGUNTAS.length, 1).getValues();
-  var hayClave = false;
-  for (var i = 0; i < valores.length; i++) {
-    if (String(valores[i][0]).trim() !== '') hayClave = true;
-  }
-  if (!hayClave) return null;
-
-  var aciertos = 0;
-  for (var j = 0; j < PREGUNTAS.length; j++) {
-    var correcta = String(valores[j][0] || '').trim();
-    if (correcta && correcta === elegidas[j]) aciertos++;
-  }
-  return aciertos;
 }
 
 /**
