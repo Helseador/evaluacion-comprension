@@ -42,7 +42,11 @@ var CONFIG = {
 
   /* Opcional: fije aquí el ID de la hoja (la parte entre /d/ y /edit de su URL)
      si prefiere no depender de las propiedades del script. */
-  hojaId: ''
+  hojaId: '',
+
+  /* URL del panel de resultados publicado en GitHub Pages. Se muestra como
+     botón en la página ?setup=1. Si clona la plantilla, cámbiela por la suya. */
+  panelUrl: 'https://helseador.github.io/evaluacion-comprension/resultados.html'
 };
 
 /* Preguntas y opciones: se usan para validar y para los encabezados.
@@ -61,6 +65,7 @@ var PREGUNTAS = [
 ];
 
 var PROPIEDAD_HOJA = 'HOJA_ID';
+var PROPIEDAD_TOKEN = 'TOKEN_PANEL';
 
 
 /* ==========================================================================
@@ -124,6 +129,7 @@ function doGet(e) {
   var q = (e && e.parameter) || {};
   if (q.diag) return diagnostico_();
   if (q.setup) return setup_();
+  if (q.datos) return datos_(q);
 
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
@@ -330,6 +336,7 @@ function setup_() {
 
   var url = ss.getUrl();
   var id = ss.getId();
+  var panel = CONFIG.panelUrl ? (CONFIG.panelUrl + '?t=' + token_()) : '';
 
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Hoja lista</title>' +
@@ -345,7 +352,12 @@ function setup_() {
     '<h1>✓ ' + (creada ? 'Hoja creada' : 'Hoja ya estaba lista') + '</h1>' +
     '<p>Allí caen las respuestas de la evaluación. Ábrala y déjela en favoritos:</p>' +
     '<p><a class="btn" href="' + url + '" target="_blank">Abrir la hoja de respuestas</a></p>' +
-    '<p style="margin-top:18px">ID de la hoja:<br><code>' + id + '</code></p>' +
+    (CONFIG.panelUrl
+      ? '<p><a class="btn" href="' + panel + '">Abrir el panel de resultados</a></p>'
+      : '') +
+    '<p style="margin-top:18px">Token del panel:<br><code>' + token_() + '</code></p>' +
+    '<p style="font-size:13px">Panel: <code>' + (CONFIG.panelUrl || 'resultados.html') +
+    '?t=' + token_() + '</code></p>' +
     '<p>Comprobación del receptor: <a href="?diag=1">?diag=1</a></p>' +
     '</div></body></html>';
 
@@ -354,6 +366,124 @@ function setup_() {
     .setTitle('Hoja lista')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+
+/* ==========================================================================
+   PANEL DE RESULTADOS (JSONP)
+   ========================================================================== */
+
+function token_() {
+  var props = PropertiesService.getScriptProperties();
+  var t = props.getProperty(PROPIEDAD_TOKEN);
+  if (!t) {
+    t = Utilities.getUuid().replace(/-/g, '').slice(0, 24);
+    props.setProperty(PROPIEDAD_TOKEN, t);
+  }
+  return t;
+}
+
+function formatear_(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  }
+  return String(v || '');
+}
+
+/** Devuelve la clave cargada (pregunta -> opción correcta). */
+function leerClave_() {
+  var salida = {};
+  try {
+    var ss = obtenerHoja_();
+    var clave = ss.getSheetByName(CONFIG.hojaClave);
+    if (!clave || clave.getLastRow() < 2) return salida;
+    var filas = Math.min(PREGUNTAS.length, clave.getLastRow() - 1);
+    var v = clave.getRange(2, 2, filas, 1).getValues();
+    for (var i = 0; i < filas; i++) {
+      var txt = String(v[i][0]).trim();
+      if (txt) salida[PREGUNTAS[i].id] = txt;
+    }
+  } catch (e) {}
+  return salida;
+}
+
+/**
+ * …/exec?datos=1&t=TOKEN&callback=fn
+ * JSONP para que el panel de GitHub Pages pueda leer las respuestas.
+ */
+function datos_(q) {
+  var cb = String(q.callback || '').replace(/[^A-Za-z0-9_$.]/g, '');
+  var salida;
+
+  if (String(q.t || '') !== token_()) {
+    salida = { ok: false, error: 'Token inválido' };
+  } else {
+    try {
+      var ss = obtenerHoja_();
+      var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
+      var filas = [];
+      if (hoja && hoja.getLastRow() > 1) {
+        filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, 10).getValues();
+      }
+
+      var clave = leerClave_();
+      var respuestas = [];
+      var conteo = {};
+
+      for (var i = 0; i < filas.length; i++) {
+        var f = filas[i];
+        var doc = String(f[2]).trim();
+        conteo[doc] = (conteo[doc] || 0) + 1;
+
+        respuestas.push({
+          ts: formatear_(f[0]),
+          nombre: String(f[1]),
+          documento: doc,
+          respuestas: {
+            p1: String(f[3]), p2: String(f[4]), p3: String(f[5]),
+            p4: String(f[6]), p5: String(f[7])
+          },
+          aciertos: String(f[8]).trim() === '' ? null : Number(f[8]),
+          envios: 1
+        });
+      }
+      for (var k = 0; k < respuestas.length; k++) {
+        respuestas[k].envios = conteo[respuestas[k].documento] || 1;
+      }
+      respuestas.sort(function (a, b) {
+        return String(b.ts).localeCompare(String(a.ts));
+      });
+
+      var preguntas = [];
+      for (var j = 0; j < PREGUNTAS.length; j++) {
+        preguntas.push({
+          id: PREGUNTAS[j].id,
+          texto: PREGUNTAS[j].texto,
+          opciones: PREGUNTAS[j].opciones,
+          correcta: clave[PREGUNTAS[j].id] || ''
+        });
+      }
+
+      salida = {
+        ok: true,
+        generado: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
+        hoja: ss.getUrl(),
+        total: respuestas.length,
+        preguntas: preguntas,
+        respuestas: respuestas
+      };
+    } catch (err) {
+      salida = { ok: false, error: String((err && err.message) || err) };
+    }
+  }
+
+  var json = JSON.stringify(salida);
+  if (cb) {
+    return ContentService.createTextOutput(cb + '(' + json + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 
 /** …/exec?diag=1 */
 function diagnostico_() {

@@ -71,9 +71,29 @@ Web App abierta directamente en el navegador debe decir **"Receptor activo"**.
 |---|---|
 | `?diag=1` | Texto plano con el estado: si la hoja está configurada, cuántas respuestas lleva y si la clave está cargada |
 | `?setup=1` | Crea o repara la hoja y muestra el enlace directo (seguro de ejecutar varias veces) |
+| `?datos=1&t=TOKEN&callback=f` | JSONP con todas las respuestas; es lo que consume `resultados.html` |
 | `?setup=1` + `?diag=1` | Es el primer sitio donde mirar si algo no guarda |
 
 ## Ver los resultados
+
+Hay dos formas, con los mismos datos.
+
+### Panel visual en GitHub Pages (sin abrir Sheets)
+
+`resultados.html` lee las respuestas del Web App y arma el tablero: promedio,
+% de acierto, tabla con ✓/✗ por pregunta, distribución por opción y descarga en CSV.
+
+```
+https://<usuario>.github.io/<repo>/resultados.html?t=<TOKEN>
+```
+
+El token aparece en la página `…/exec?setup=1` y queda guardado en el navegador
+(la segunda vez basta con abrir `resultados.html`).
+
+> La página es pública, pero sin token no devuelve datos: el endpoint `?datos=1`
+> los rechaza. No comparta el enlace que lleva el token.
+
+### Hoja de Google
 
 Todo está en la hoja **"Respuestas — Evaluación de comprensión"**:
 
@@ -107,10 +127,11 @@ el script para validarlas y encabezar las columnas.
 
 ```
 index.html              formulario (GitHub Pages sirve este archivo)
+resultados.html         panel de resultados (lee del Web App con token)
 styles.css              estilos
 app.js                  validación, progreso y envío
 config.js               ← lo único que se edita para conectar
-apps-script/Codigo.gs   receptor + hoja de cálculo
+apps-script/Codigo.gs   receptor + hoja de cálculo + endpoint ?datos=1
 apps-script/INSTRUCCIONES.md
 ```
 
@@ -121,6 +142,10 @@ apps-script/INSTRUCCIONES.md
 **El iframe se queda en "Enviando…"** → la implementación no está como *Cualquier
 persona*, o se cambió el código y no se volvió a implementar (*Implementar → Gestionar
 implementaciones → Editar*).
+
+**El panel dice "Token inválido"** → el token cambió o es de otra hoja. Sáquelo de
+nuevo en `…/exec?setup=1` y ábralo con `resultados.html?t=…`; después basta con
+`resultados.html` porque queda guardado en el navegador.
 
 **No aparecen las respuestas en la hoja** → abra `…/exec?diag=1`. Si dice
 `Hoja configurada: NO`, abra `…/exec?setup=1` y se crea. Si dice `SI` pero con
