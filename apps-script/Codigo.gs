@@ -30,7 +30,12 @@ var CONFIG = {
   hojaRespuestas: 'Respuestas',
   hojaClave: 'Clave',
   nombreMinimo: 5,
-  patronDocumento: '^[0-9A-Za-z]{4,15}$'
+  patronDocumento: '^[0-9A-Za-z]{4,15}$',
+
+  /* Opcional: si prefiere no depender de las propiedades del script, pegue
+     aquí el ID de la hoja de cálculo (la parte entre /d/ y /edit de su URL).
+     Déjelo vacío para que lo tome automáticamente al ejecutar configurar(). */
+  hojaId: ''
 };
 
 /* Preguntas y opciones: se usan para validar y para los encabezados.
@@ -103,7 +108,7 @@ function doPost(e) {
     var detalle = String((err && err.message) || err);
     var causa = /configurar|HOJA_ID|propiedad|No existe la pestaña|no tiene permiso/i.test(detalle)
       ? 'Falta ejecutar la función configurar() una vez en el editor de Apps Script.'
-      : 'Ocurrió un error al guardar. Intente de nuevo o avise al administrador.';
+      : 'No se pudo guardar. Detalle técnico: ' + detalle;
     return respuesta_('No se pudo registrar', causa, false);
   } finally {
     try { lock.releaseLock(); } catch (e2) {}
@@ -137,7 +142,7 @@ function doGet(e) {
 /** Diagnóstico rápido: abra <URL>/exec?diag=1 */
 function diagnostico_() {
   var lineas = ['Receptor: OK'];
-  var id = PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA);
+  var id = idHoja_();
   lineas.push('Hoja configurada: ' + (id ? 'SI' : 'NO — falta ejecutar configurar()'));
 
   if (id) {
@@ -174,7 +179,7 @@ function diagnostico_() {
 /** Crea la hoja de cálculo con las pestañas y guarda su ID. */
 function configurar() {
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty(PROPIEDAD_HOJA);
+  var id = idHoja_();
 
   var ss;
   if (id) {
@@ -264,8 +269,14 @@ function probar() {
    INTERNO
    ========================================================================== */
 
+function idHoja_() {
+  var fijo = CONFIG.hojaId && String(CONFIG.hojaId).trim();
+  if (fijo) return fijo;
+  return PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA) || '';
+}
+
 function hojaRespuestas_() {
-  var id = PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA);
+  var id = idHoja_();
   if (!id) {
     throw new Error('Falta ejecutar configurar() una vez.');
   }
@@ -288,11 +299,20 @@ function contarEnvios_(hoja, documento) {
 
 /** Devuelve el número de aciertos, o null si no hay clave configurada. */
 function calcularAciertos_(elegidas) {
-  var id = PropertiesService.getScriptProperties().getProperty(PROPIEDAD_HOJA);
+  var id = idHoja_();
   if (!id) return null;
-  var ss = SpreadsheetApp.openById(id);
-  var clave = ss.getSheetByName(CONFIG.hojaClave);
-  if (!clave || clave.getLastRow() < 2) return null;
+
+  var ss, clave;
+  try {
+    ss = SpreadsheetApp.openById(id);
+    clave = ss.getSheetByName(CONFIG.hojaClave);
+  } catch (e) {
+    return null;
+  }
+  if (!clave) return null;
+
+  var filas = Math.max(0, clave.getLastRow() - 1);
+  if (filas < PREGUNTAS.length) return null;
 
   var valores = clave.getRange(2, 2, PREGUNTAS.length, 1).getValues();
   var hayClave = false;
