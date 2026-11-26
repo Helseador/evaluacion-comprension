@@ -488,12 +488,25 @@ function datos_(q) {
 }
 
 
-/** …/exec?limpiar=1&t=TOKEN — borra solo las filas de prueba. */
+/**
+ * …/exec?limpiar=1&t=TOKEN
+ * Borra filas de prueba. Criterios (se pueden combinar):
+ *   ?limpiar=1&t=TOKEN              → nombre contiene "prueba"
+ *   ?limpiar=1&t=TOKEN&docs=123,456 → esos documentos
+ *   ?limpiar=1&t=TOKEN&nombres=Ana|Luis  → esos nombres exactos
+ *   &dry=1                          → solo muestra qué borraría, sin borrar
+ */
 function limpiar_(q) {
   if (String(q.t || '') !== token_()) {
     return HtmlService.createHtmlOutput('<p>Falta el token: agregue &amp;t=TOKEN al enlace.</p>')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
+
+  var docs = String(q.docs || '').split(',').map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+  var nombres = String(q.nombres || '').split('|').map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+  var dry = String(q.dry || '') === '1';
 
   var ss = obtenerHoja_();
   var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
@@ -506,34 +519,43 @@ function limpiar_(q) {
     for (var i = 0; i < datos.length; i++) {
       var nombre = String(datos[i][1] || '').trim();
       var doc = String(datos[i][2] || '').trim().replace(/\.0$/, '');
-      // Solo filas cuyo NOMBRE diga "prueba": nunca toca respuestas reales.
-      var esPrueba = /prueba/i.test(nombre);
-      if (esPrueba) {
+      var coincide = /prueba/i.test(nombre) ||
+        (docs.length > 0 && docs.indexOf(doc) !== -1) ||
+        (nombres.length > 0 && nombres.some(function (n) {
+          return n.toLowerCase() === nombre.toLowerCase();
+        }));
+      if (coincide) {
         objetivos.push(i + 2);
         borradas.push(nombre + ' — ' + doc);
       }
     }
-    for (var k = objetivos.length - 1; k >= 0; k--) {
-      hoja.deleteRow(objetivos[k]);
+    if (!dry) {
+      for (var k = objetivos.length - 1; k >= 0; k--) {
+        hoja.deleteRow(objetivos[k]);
+      }
     }
   }
 
-  var quedan = Math.max(0, hoja.getLastRow() - 1);
+  var actuales = Math.max(0, hoja.getLastRow() - 1);
+  var quedan = dry ? Math.max(0, actuales - borradas.length) : actuales;
+
   var lista = borradas.length
     ? '<ul>' + borradas.map(function (x) { return '<li>' + String(x).replace(/</g, '&lt;') + '</li>'; }).join('') + '</ul>'
-    : '<p>No había filas de prueba.</p>';
+    : '<p>No encontré filas que coincidan con el criterio.</p>';
 
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Limpieza</title>' +
     '<style>body{font-family:system-ui,Segoe UI,sans-serif;background:#eef2f7;color:#13232f;' +
     'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}' +
-    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:32px 34px;max-width:560px;' +
+    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:32px 34px;max-width:580px;' +
     'box-shadow:0 10px 30px rgba(16,40,60,.08)}h1{margin:0 0 10px;font-size:19px;color:#0d7a6f}' +
     'p{color:#5f7485;font-size:14px;margin:0 0 10px}ul{color:#41586a;font-size:13.5px;' +
     'margin:8px 0;padding-left:20px}a{color:#0d7a6f}</style></head><body><div class="c">' +
-    '<h1>✓ Limpieza terminada</h1>' +
-    '<p>Filas de prueba eliminadas: <b>' + borradas.length + '</b></p>' + lista +
-    '<p>Quedan <b>' + quedan + '</b> respuestas.</p>' +
+    '<h1>' + (dry ? 'Vista previa (no se borró nada)' : '✓ Limpieza terminada') + '</h1>' +
+    '<p>' + (dry ? 'Filas que se borrarían: ' : 'Filas eliminadas: ') +
+    '<b>' + borradas.length + '</b></p>' + lista +
+    '<p>' + (dry ? 'Quedarían <b>' + quedan + '</b> respuestas.' :
+      'Quedan <b>' + quedan + '</b> respuestas.') + '</p>' +
     '<p><a href="' + (CONFIG.panelUrl || '?setup=1') + '?t=' + token_() + '">Ver el panel</a> · ' +
     '<a href="?diag=1">?diag=1</a></p>' +
     '</div></body></html>';
