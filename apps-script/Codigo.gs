@@ -506,7 +506,8 @@ function limpiar_(q) {
     for (var i = 0; i < datos.length; i++) {
       var nombre = String(datos[i][1] || '').trim();
       var doc = String(datos[i][2] || '').trim().replace(/\.0$/, '');
-      var esPrueba = /prueba/i.test(nombre) || doc === '0' || doc === '000000' || doc === '';
+      // Solo filas cuyo NOMBRE diga "prueba": nunca toca respuestas reales.
+      var esPrueba = /prueba/i.test(nombre);
       if (esPrueba) {
         objetivos.push(i + 2);
         borradas.push(nombre + ' — ' + doc);
