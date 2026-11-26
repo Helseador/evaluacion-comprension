@@ -130,6 +130,7 @@ function doGet(e) {
   if (q.diag) return diagnostico_();
   if (q.setup) return setup_();
   if (q.datos) return datos_(q);
+  if (q.limpiar) return limpiar_(q);
 
   var html =
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
@@ -484,6 +485,61 @@ function datos_(q) {
   }
   return ContentService.createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/** …/exec?limpiar=1&t=TOKEN — borra solo las filas de prueba. */
+function limpiar_(q) {
+  if (String(q.t || '') !== token_()) {
+    return HtmlService.createHtmlOutput('<p>Falta el token: agregue &amp;t=TOKEN al enlace.</p>')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  var ss = obtenerHoja_();
+  var hoja = ss.getSheetByName(CONFIG.hojaRespuestas);
+  var ultima = hoja.getLastRow();
+  var borradas = [];
+  var objetivos = [];
+
+  if (ultima >= 2) {
+    var datos = hoja.getRange(2, 1, ultima - 1, 3).getValues();  // A, B, C
+    for (var i = 0; i < datos.length; i++) {
+      var nombre = String(datos[i][1] || '').trim();
+      var doc = String(datos[i][2] || '').trim().replace(/\.0$/, '');
+      var esPrueba = /prueba/i.test(nombre) || doc === '0' || doc === '000000' || doc === '';
+      if (esPrueba) {
+        objetivos.push(i + 2);
+        borradas.push(nombre + ' — ' + doc);
+      }
+    }
+    for (var k = objetivos.length - 1; k >= 0; k--) {
+      hoja.deleteRow(objetivos[k]);
+    }
+  }
+
+  var quedan = Math.max(0, hoja.getLastRow() - 1);
+  var lista = borradas.length
+    ? '<ul>' + borradas.map(function (x) { return '<li>' + String(x).replace(/</g, '&lt;') + '</li>'; }).join('') + '</ul>'
+    : '<p>No había filas de prueba.</p>';
+
+  var html =
+    '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Limpieza</title>' +
+    '<style>body{font-family:system-ui,Segoe UI,sans-serif;background:#eef2f7;color:#13232f;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}' +
+    '.c{background:#fff;border:1px solid #dbe4ec;border-radius:14px;padding:32px 34px;max-width:560px;' +
+    'box-shadow:0 10px 30px rgba(16,40,60,.08)}h1{margin:0 0 10px;font-size:19px;color:#0d7a6f}' +
+    'p{color:#5f7485;font-size:14px;margin:0 0 10px}ul{color:#41586a;font-size:13.5px;' +
+    'margin:8px 0;padding-left:20px}a{color:#0d7a6f}</style></head><body><div class="c">' +
+    '<h1>✓ Limpieza terminada</h1>' +
+    '<p>Filas de prueba eliminadas: <b>' + borradas.length + '</b></p>' + lista +
+    '<p>Quedan <b>' + quedan + '</b> respuestas.</p>' +
+    '<p><a href="' + (CONFIG.panelUrl || '?setup=1') + '?t=' + token_() + '">Ver el panel</a> · ' +
+    '<a href="?diag=1">?diag=1</a></p>' +
+    '</div></body></html>';
+
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Limpieza')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 
